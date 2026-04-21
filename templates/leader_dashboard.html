@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="layout-2">
+  <section class="card">
+    <h2>Department Members ({{ current_user.department }})</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Member</th>
+          <th>Current Tasks</th>
+          <th>Project</th>
+          <th>Status</th>
+          <th>Weekly Report</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for member in members %}
+        {% set member_tasks = tasks_by_member.get(member.id, []) %}
+        <tr>
+          <td>{{ member.name }}</td>
+          <td>
+            {% if member_tasks %}
+              {{ member_tasks[0].title }}
+            {% else %}
+              No task
+            {% endif %}
+          </td>
+          <td>
+            {% if member_tasks %}
+              {{ member_tasks[0].project.name }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if member_tasks %}
+              <span class="badge">{{ member_tasks[0].status }}</span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if member in missing_reports %}
+            <span class="badge warning">Missing this week</span>
+            {% else %}
+            <span class="badge success">Submitted</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5">No members found.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted">Weekly tracking window starts {{ week_start.date() }}.</p>
+  </section>
+
+  <section class="card">
+    <h2>Create and Assign Task</h2>
+    <form method="post" enctype="multipart/form-data" class="grid-form">
+      <input type="hidden" name="action" value="create_task" />
+      <label>Task title
+        <input name="title" required />
+      </label>
+      <label>Description
+        <textarea name="description" rows="3" required></textarea>
+      </label>
+      <label>Project
+        <select name="project_id" required>
+          <option value="">Select project</option>
+          {% for project in projects %}
+          <option value="{{ project.id }}">{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Deadline
+        <input type="date" name="deadline" required />
+      </label>
+      <label>Assign to member
+        <select name="assigned_to_id" required>
+          <option value="">Select member</option>
+          {% for member in members %}
+          <option value="{{ member.id }}">{{ member.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Attachment (optional)
+        <input type="file" name="task_attachment" />
+      </label>
+      <button type="submit" class="btn">Assign Task</button>
+    </form>
+  </section>
+</div>
+
+<div class="layout-2">
+  <section class="card">
+    <h2>Submit Weekly Leader Report</h2>
+    <form method="post" enctype="multipart/form-data" class="grid-form">
+      <input type="hidden" name="action" value="submit_report" />
+      <label>Report text
+        <textarea name="text" rows="4" required></textarea>
+      </label>
+      <label>Attachment (optional)
+        <input type="file" name="leader_attachment" />
+      </label>
+      <button type="submit" class="btn">Submit Leader Report</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Missing Member Reports</h2>
+    <ul class="list">
+      {% for member in missing_reports %}
+      <li>{{ member.name }} ({{ member.department }})</li>
+      {% else %}
+      <li>All members submitted this week.</li>
+      {% endfor %}
+    </ul>
+
+    <h3>My Leader Reports</h3>
+    <ul class="list">
+      {% for report in leader_reports %}
+      <li>
+        {{ report.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ report.text }}
+        {% if report.attachment_path %}
+          · <a href="{{ url_for('files', filename=report.attachment_path) }}">Attachment</a>
+        {% endif %}
+      </li>
+      {% else %}
+      <li>No leader reports yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

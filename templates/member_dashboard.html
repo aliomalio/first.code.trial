@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="layout-2">
+  <section class="card">
+    <h2>My Tasks</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Description</th>
+          <th>Project</th>
+          <th>Deadline</th>
+          <th>Status</th>
+          <th>Attachment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for task in tasks %}
+        <tr>
+          <td>{{ task.title }}</td>
+          <td>{{ task.description }}</td>
+          <td>{{ task.project.name }}</td>
+          <td>{{ task.deadline }}</td>
+          <td><span class="badge">{{ task.status }}</span></td>
+          <td>
+            {% if task.attachment_path %}
+            <a href="{{ url_for('files', filename=task.attachment_path) }}">Download</a>
+            {% else %}
+            -
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6">No assigned tasks yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Submit Weekly Report</h2>
+    <form method="post" enctype="multipart/form-data" class="grid-form">
+      <label>Related Task (optional)
+        <select name="task_id">
+          <option value="">None</option>
+          {% for task in tasks %}
+          <option value="{{ task.id }}">{{ task.title }} ({{ task.project.name }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Report text
+        <textarea name="text" rows="4" required></textarea>
+      </label>
+      <label>Attachment (optional)
+        <input type="file" name="attachment" />
+      </label>
+      <button type="submit" class="btn">Submit Report</button>
+    </form>
+
+    <h3>My Past Reports</h3>
+    <ul class="list">
+      {% for report in reports %}
+      <li>
+        <strong>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</strong> - {{ report.text }}
+        {% if report.attachment_path %}
+          · <a href="{{ url_for('files', filename=report.attachment_path) }}">Attachment</a>
+        {% endif %}
+      </li>
+      {% else %}
+      <li>No reports submitted yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}
