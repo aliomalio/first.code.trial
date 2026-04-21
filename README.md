@@ -2,22 +2,22 @@
 
 A focused, operational MVP for robotics/engineering team management.
 
-## What this MVP now includes
+## What this MVP includes
 
 - Email/password authentication and role routing (`member`, `leader`, `captain`)
 - Member task view and weekly report submission (text + file + task rating 1-5)
 - Leader department dashboard (members, task assignment, task status updates)
 - Leader weekly project-linked reports to captain
-- Leader weekly **project + department progress notes**
+- Leader weekly **project + department progress notes** with optional file attachments
 - Leader ability to remove only own-department members from active team membership
-- Captain global controls:
+- Captain controls:
   - assign tasks to any active non-captain user
-  - update any task status
-  - update any project status (`active`, `delayed`, `blocked`, `completed`, `on hold`)
+  - update any task status (`active`, `delayed`, `cancelled`, `done`)
   - update user role + department
-  - view/edit/delete all reports
+  - remove users from team
   - filter task table by department / project / status
-  - view project breakdown by department with latest weekly notes
+  - view/edit/delete all reports and filter by report type / department / project / author
+  - view full project breakdown across Mechanical/Electronics/Software/Corporate
 - File uploads for tasks and reports
 
 ## Tech stack
@@ -27,33 +27,6 @@ A focused, operational MVP for robotics/engineering team management.
 - Flask-SQLAlchemy
 - SQLite
 - Jinja templates + CSS
-
-## Project structure
-
-```text
-.
-├── app.py
-├── requirements.txt
-├── app.db (generated after init)
-├── uploads/ (generated automatically)
-├── static/
-│   └── styles.css
-└── templates/
-    ├── base.html
-    ├── login.html
-    ├── member_dashboard.html
-    ├── leader_dashboard.html
-    └── captain_dashboard.html
-```
-
-## Data model overview
-
-- `User`: name, email, role, department, password hash, active flag
-- `Project`: name, description, status
-- `ProjectDepartment`: project-to-department mapping
-- `Task`: project, assignee, assigner, deadline, status, optional attachment
-- `Report`: member/leader report, optional task, optional project, optional rating, attachment
-- `DepartmentProgressNote`: weekly note per project + department by leader
 
 ## Quick setup
 
@@ -84,17 +57,23 @@ flask --app app.py run --debug
 
 Open `http://127.0.0.1:5000`.
 
-## Seed data
+## Seed data (fresh clean system)
 
-`init-db` creates a fresh clean starting state:
+`init-db` creates:
 
 - 30 users total
   - 1 captain
-  - 3 leaders (Mechanical, Electronics, Software)
-  - 26 members distributed across Mechanical/Electronics/Software
-- projects + project-department mappings
-- **no initial tasks**
-- **no initial reports**
+  - 4 leaders (Mechanical, Electronics, Software, Corporate)
+  - 25 members distributed across all four departments
+- 5 projects
+  - Mecanum
+  - Robotic Arm
+  - Robotic Hand
+  - Robotic Dog
+  - Corporate Operations
+- Project-department mappings for all departments on all projects
+- No initial tasks
+- No initial reports
 
 Default password for all demo users:
 
@@ -102,30 +81,24 @@ Default password for all demo users:
 password123
 ```
 
-## Permission rules
-
-Members:
-- only see their own tasks
-- submit own reports with optional file and task rating
-
-Leaders:
-- see only own department members
-- assign tasks only to own department members
-- update task statuses only for own department members
-- submit weekly project-linked leader reports
-- submit weekly project-department progress notes
-- remove only own department members (deactivate)
+## Demo login emails
 
 Captain:
-- sees/manages all users, projects, tasks, reports
-- can update any task status
-- can edit project status
-- can edit/delete reports
-- can update user role and department
-- can view member task ratings
-- can view project breakdown with all core departments and latest notes
+- `captain@enro`
+
+Leaders:
+- `m.leader@enro`
+- `e.leader@enro`
+- `s.leader@enro`
+- `c.leader@enro`
+
+Members:
+- Mechanical: `m.member.1@enro` ... `m.member.7@enro`
+- Electronics: `e.member.1@enro` ... `e.member.6@enro`
+- Software: `s.member.1@enro` ... `s.member.6@enro`
+- Corporate: `c.member.1@enro` ... `c.member.6@enro`
 
 ## Notes
 
-- This release is still intentionally non-AI.
+- This release is intentionally non-AI.
 - Uploaded files are stored in `uploads/` and served via authenticated route.

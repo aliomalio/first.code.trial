@@ -15,9 +15,8 @@ BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 
 ROLE_OPTIONS = ["member", "leader", "captain"]
-DEPARTMENT_OPTIONS = ["Mechanical", "Electronics", "Software"]
-PROJECT_STATUS_OPTIONS = ["active", "delayed", "blocked", "completed", "on hold"]
-TASK_STATUS_OPTIONS = ["todo", "in_progress", "blocked", "done"]
+DEPARTMENT_OPTIONS = ["Mechanical", "Electronics", "Software", "Corporate"]
+TASK_STATUS_OPTIONS = ["active", "delayed", "cancelled", "done"]
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "dev-secret-key-change-me"
@@ -77,7 +76,7 @@ class Task(db.Model):
     assigned_to_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     assigned_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     deadline = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), nullable=False, default="todo")
+    status = db.Column(db.String(20), nullable=False, default="active")
     attachment_path = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
@@ -105,6 +104,7 @@ class DepartmentProgressNote(db.Model):
     leader_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     week_start = db.Column(db.Date, nullable=False)
     note = db.Column(db.Text, nullable=False)
+    attachment_path = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     project = db.relationship("Project")
@@ -219,10 +219,11 @@ def member_dashboard():
             flash("You can only report on your own tasks.", "error")
         else:
             attachment = save_upload(request.files.get("attachment"))
+            related_task = db.session.get(Task, int(task_id)) if task_id else None
             report = Report(
                 author_id=current_user.id,
-                related_task_id=int(task_id) if task_id else None,
-                project_id=db.session.get(Task, int(task_id)).project_id if task_id else None,
+                related_task_id=related_task.id if related_task else None,
+                project_id=related_task.project_id if related_task else None,
                 report_type="member",
                 text=text,
                 task_rating=int(rating),
@@ -281,7 +282,7 @@ def leader_dashboard():
                     assigned_to_id=member.id,
                     assigned_by_id=current_user.id,
                     deadline=datetime.strptime(deadline_str, "%Y-%m-%d").date(),
-                    status="todo",
+                    status="active",
                     attachment_path=attachment,
                 )
                 db.session.add(task)
@@ -335,6 +336,7 @@ def leader_dashboard():
                 flash("Selected project is not valid for your department.", "error")
             else:
                 week_start = current_week_start()
+                attachment = save_upload(request.files.get("progress_attachment"))
                 existing = DepartmentProgressNote.query.filter_by(
                     project_id=project.id,
                     department=current_user.department,
@@ -343,6 +345,8 @@ def leader_dashboard():
                 if existing:
                     existing.note = note_text
                     existing.leader_id = current_user.id
+                    if attachment:
+                        existing.attachment_path = attachment
                 else:
                     db.session.add(
                         DepartmentProgressNote(
@@ -351,6 +355,7 @@ def leader_dashboard():
                             leader_id=current_user.id,
                             week_start=week_start,
                             note=note_text,
+                            attachment_path=attachment,
                         )
                     )
                 db.session.commit()
@@ -431,7 +436,7 @@ def captain_dashboard():
                     assigned_to_id=int(assigned_to_id),
                     assigned_by_id=current_user.id,
                     deadline=datetime.strptime(deadline_str, "%Y-%m-%d").date(),
-                    status="todo",
+                    status="active",
                     attachment_path=attachment,
                 )
                 db.session.add(task)
@@ -451,18 +456,6 @@ def captain_dashboard():
                 flash("Task status updated.", "success")
                 return redirect(url_for("captain_dashboard", **request.args))
 
-        elif action == "update_project_status":
-            project_id = request.form.get("project_id")
-            status = request.form.get("status")
-            project = db.session.get(Project, int(project_id)) if project_id else None
-            if not project or status not in PROJECT_STATUS_OPTIONS:
-                flash("Invalid project or project status.", "error")
-            else:
-                project.status = status
-                db.session.commit()
-                flash("Project status updated.", "success")
-                return redirect(url_for("captain_dashboard"))
-
         elif action == "update_user":
             user_id = request.form.get("user_id")
             role = request.form.get("role")
@@ -477,6 +470,17 @@ def captain_dashboard():
                 flash("User role/department updated.", "success")
                 return redirect(url_for("captain_dashboard"))
 
+        elif action == "remove_user":
+            user_id = request.form.get("user_id")
+            user = db.session.get(User, int(user_id)) if user_id else None
+            if not user or user.id == current_user.id:
+                flash("Invalid user removal action.", "error")
+            else:
+                user.is_active = False
+                db.session.commit()
+                flash("User removed from team.", "success")
+                return redirect(url_for("captain_dashboard"))
+
         elif action == "edit_report":
             report_id = request.form.get("report_id")
             text = request.form.get("text", "").strip()
@@ -487,7 +491,7 @@ def captain_dashboard():
                 report.text = text
                 db.session.commit()
                 flash("Report updated.", "success")
-                return redirect(url_for("captain_dashboard"))
+                return redirect(url_for("captain_dashboard", **request.args))
 
         elif action == "delete_report":
             report_id = request.form.get("report_id")
@@ -498,14 +502,16 @@ def captain_dashboard():
                 db.session.delete(report)
                 db.session.commit()
                 flash("Report deleted.", "success")
-                return redirect(url_for("captain_dashboard"))
+                return redirect(url_for("captain_dashboard", **request.args))
 
+    # Task filters
     dept_filter = request.args.get("department", "all")
     proj_filter = request.args.get("project", "all")
     status_filter = request.args.get("status", "all")
 
     users = User.query.order_by(User.department.asc(), User.name.asc()).all()
     assignable_users = User.query.filter(User.is_active == True, User.role != "captain").order_by(User.name.asc()).all()
+    authors = User.query.filter(User.is_active == True).order_by(User.name.asc()).all()
     projects = Project.query.order_by(Project.name.asc()).all()
 
     tasks_query = Task.query.join(User, Task.assigned_to_id == User.id)
@@ -517,7 +523,22 @@ def captain_dashboard():
         tasks_query = tasks_query.filter(Task.status == status_filter)
     tasks = tasks_query.order_by(Task.created_at.desc()).all()
 
-    reports = Report.query.order_by(Report.created_at.desc()).all()
+    # Report filters
+    report_type_filter = request.args.get("report_type", "all")
+    report_department_filter = request.args.get("report_department", "all")
+    report_project_filter = request.args.get("report_project", "all")
+    report_author_filter = request.args.get("report_author", "all")
+
+    reports_query = Report.query.join(User, Report.author_id == User.id)
+    if report_type_filter != "all":
+        reports_query = reports_query.filter(Report.report_type == report_type_filter)
+    if report_department_filter != "all":
+        reports_query = reports_query.filter(User.department == report_department_filter)
+    if report_project_filter != "all":
+        reports_query = reports_query.filter(Report.project_id == int(report_project_filter))
+    if report_author_filter != "all":
+        reports_query = reports_query.filter(Report.author_id == int(report_author_filter))
+    reports = reports_query.order_by(Report.created_at.desc()).all()
 
     latest_notes = {}
     notes = DepartmentProgressNote.query.order_by(
@@ -528,14 +549,13 @@ def captain_dashboard():
         if key not in latest_notes:
             latest_notes[key] = note
 
+    all_tasks = Task.query.order_by(Task.created_at.desc()).all()
     project_breakdown = []
     for project in projects:
         by_department = {}
+        project_tasks = [t for t in all_tasks if t.project_id == project.id]
         for department in DEPARTMENT_OPTIONS:
-            dept_tasks = [
-                t for t in Task.query.filter_by(project_id=project.id).order_by(Task.created_at.desc()).all()
-                if t.assignee.department == department and t.assignee.is_active
-            ]
+            dept_tasks = [t for t in project_tasks if t.assignee.department == department and t.assignee.is_active]
             by_department[department] = {
                 "tasks": dept_tasks,
                 "note": latest_notes.get((project.id, department)),
@@ -546,18 +566,22 @@ def captain_dashboard():
         "captain_dashboard.html",
         users=users,
         assignable_users=assignable_users,
+        authors=authors,
         projects=projects,
         tasks=tasks,
         reports=reports,
         project_breakdown=project_breakdown,
         task_status_options=TASK_STATUS_OPTIONS,
-        project_status_options=PROJECT_STATUS_OPTIONS,
         role_options=ROLE_OPTIONS,
         department_options=DEPARTMENT_OPTIONS,
         selected_filters={
             "department": dept_filter,
             "project": proj_filter,
             "status": status_filter,
+            "report_type": report_type_filter,
+            "report_department": report_department_filter,
+            "report_project": report_project_filter,
+            "report_author": report_author_filter,
         },
     )
 
@@ -578,6 +602,7 @@ def init_db():
         Project(name="Robotic Arm", description="Manipulator system development", status="active"),
         Project(name="Robotic Hand", description="End effector and precision grip development", status="active"),
         Project(name="Robotic Dog", description="Quadruped research platform", status="active"),
+        Project(name="Corporate Operations", description="Sponsorship, outreach, documentation, and operations", status="active"),
     ]
     db.session.add_all(projects)
     db.session.flush()
@@ -586,28 +611,31 @@ def init_db():
         for department in DEPARTMENT_OPTIONS:
             db.session.add(ProjectDepartment(project_id=project.id, department=department))
 
-    users = [("Captain Jane", "captain@robotics.local", "captain", "Mechanical")]
-    users.extend(
-        [
-            ("Mina Mechanical", "leader.mech@robotics.local", "leader", "Mechanical"),
-            ("Eli Electronics", "leader.elec@robotics.local", "leader", "Electronics"),
-            ("Sam Software", "leader.soft@robotics.local", "leader", "Software"),
-        ]
-    )
+    users = [
+        ("Captain Jane", "captain@enro", "captain", "Corporate"),
+        ("Mechanical Leader", "m.leader@enro", "leader", "Mechanical"),
+        ("Electronics Leader", "e.leader@enro", "leader", "Electronics"),
+        ("Software Leader", "s.leader@enro", "leader", "Software"),
+        ("Corporate Leader", "c.leader@enro", "leader", "Corporate"),
+    ]
 
-    member_distribution = [("Mechanical", 9), ("Electronics", 9), ("Software", 8)]
-    counter = 1
-    for department, count in member_distribution:
-        for _ in range(count):
+    member_distribution = [
+        ("Mechanical", "m", 7),
+        ("Electronics", "e", 6),
+        ("Software", "s", 6),
+        ("Corporate", "c", 6),
+    ]
+
+    for department, prefix, count in member_distribution:
+        for i in range(1, count + 1):
             users.append(
                 (
-                    f"{department} Member {counter}",
-                    f"member{counter:02d}.{department.lower()}@robotics.local",
+                    f"{department} Member {i}",
+                    f"{prefix}.member.{i}@enro",
                     "member",
                     department,
                 )
             )
-            counter += 1
 
     for name, email, role, department in users:
         u = User(name=name, email=email, role=role, department=department, is_active=True)
@@ -616,7 +644,8 @@ def init_db():
 
     db.session.commit()
     print("Database initialized with fresh seed data.")
-    print("Users: 30 total (1 captain, 3 leaders, 26 members)")
+    print("Users: 30 total (1 captain, 4 leaders, 25 members)")
+    print("Projects: 5 total including Corporate Operations")
     print("No starter tasks or reports created.")
     print("Default password for all demo users: password123")
 

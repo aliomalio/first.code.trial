@@ -36,68 +36,47 @@
   </form>
 </section>
 
-<div class="layout-2">
-  <section class="card">
-    <h2>User Role & Department Management</h2>
-    <table>
-      <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Active</th><th>Update</th></tr></thead>
-      <tbody>
-        {% for user in users %}
-        <tr>
-          <td>{{ user.name }}</td>
-          <td>
-            <form method="post" class="inline-form">
-              <input type="hidden" name="action" value="update_user" />
-              <input type="hidden" name="user_id" value="{{ user.id }}" />
-              <select name="role">
-                {% for role in role_options %}
-                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
-                {% endfor %}
-              </select>
-          </td>
-          <td>
-              <select name="department">
-                {% for dep in department_options %}
-                <option value="{{ dep }}" {% if user.department == dep %}selected{% endif %}>{{ dep }}</option>
-                {% endfor %}
-              </select>
-          </td>
-          <td>{{ 'Yes' if user.is_active else 'No' }}</td>
-          <td><button class="btn btn-sm" type="submit">Save</button></td>
-            </form>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>Project Status Management</h2>
-    <table>
-      <thead><tr><th>Project</th><th>Description</th><th>Status</th><th>Update</th></tr></thead>
-      <tbody>
-        {% for project in projects %}
-        <tr>
-          <td>{{ project.name }}</td>
-          <td>{{ project.description }}</td>
-          <td>
-            <form method="post" class="inline-form">
-              <input type="hidden" name="action" value="update_project_status" />
-              <input type="hidden" name="project_id" value="{{ project.id }}" />
-              <select name="status">
-                {% for status in project_status_options %}
-                <option value="{{ status }}" {% if project.status == status %}selected{% endif %}>{{ status }}</option>
-                {% endfor %}
-              </select>
-          </td>
-          <td><button class="btn btn-sm" type="submit">Save</button></td>
-            </form>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-</div>
+<section class="card">
+  <h2>User Role & Department Management</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Actions</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+      <tr>
+        <td>{{ user.name }}</td>
+        <td>
+          <form method="post" class="inline-form">
+            <input type="hidden" name="action" value="update_user" />
+            <input type="hidden" name="user_id" value="{{ user.id }}" />
+            <select name="role">
+              {% for role in role_options %}
+              <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role }}</option>
+              {% endfor %}
+            </select>
+        </td>
+        <td>
+            <select name="department">
+              {% for dep in department_options %}
+              <option value="{{ dep }}" {% if user.department == dep %}selected{% endif %}>{{ dep }}</option>
+              {% endfor %}
+            </select>
+        </td>
+        <td class="actions-cell">
+          <button class="btn btn-sm" type="submit">Save</button>
+          </form>
+          {% if user.id != current_user.id and user.is_active %}
+          <form method="post" class="inline-form" onsubmit="return confirm('Remove this user from active team?');">
+            <input type="hidden" name="action" value="remove_user" />
+            <input type="hidden" name="user_id" value="{{ user.id }}" />
+            <button class="btn btn-sm btn-danger" type="submit">Kick</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 
 <section class="card">
   <h2>All Assigned Tasks</h2>
@@ -157,7 +136,38 @@
 </section>
 
 <section class="card">
-  <h2>All Reports (Member + Leader)</h2>
+  <h2>All Reports</h2>
+  <form method="get" class="inline-filters">
+    <input type="hidden" name="department" value="{{ selected_filters.department }}" />
+    <input type="hidden" name="project" value="{{ selected_filters.project }}" />
+    <input type="hidden" name="status" value="{{ selected_filters.status }}" />
+
+    <select name="report_type">
+      <option value="all">All Types</option>
+      <option value="member" {% if selected_filters.report_type == 'member' %}selected{% endif %}>Member</option>
+      <option value="leader" {% if selected_filters.report_type == 'leader' %}selected{% endif %}>Leader</option>
+    </select>
+    <select name="report_department">
+      <option value="all">All Departments</option>
+      {% for dep in department_options %}
+      <option value="{{ dep }}" {% if selected_filters.report_department == dep %}selected{% endif %}>{{ dep }}</option>
+      {% endfor %}
+    </select>
+    <select name="report_project">
+      <option value="all">All Projects</option>
+      {% for project in projects %}
+      <option value="{{ project.id }}" {% if selected_filters.report_project == project.id|string %}selected{% endif %}>{{ project.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="report_author">
+      <option value="all">All Authors</option>
+      {% for author in authors %}
+      <option value="{{ author.id }}" {% if selected_filters.report_author == author.id|string %}selected{% endif %}>{{ author.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm" type="submit">Apply</button>
+  </form>
+
   <table>
     <thead><tr><th>Author</th><th>Type</th><th>Project</th><th>Text</th><th>Task Rating</th><th>Date</th><th>Attachment</th><th>Manage</th></tr></thead>
     <tbody>
@@ -193,10 +203,11 @@
 </section>
 
 <section class="card">
-  <h2>Project Breakdown by Department</h2>
+  <h2>Projects</h2>
   {% for project, by_department in project_breakdown %}
   <div class="project-block">
-    <h3>{{ project.name }} <span class="badge">{{ project.status }}</span></h3>
+    <h3>{{ project.name }}</h3>
+    <p class="muted">{{ project.description }}</p>
     {% for department, data in by_department.items() %}
     <div class="dept-block">
       <h4>{{ department }}</h4>
@@ -204,6 +215,9 @@
         Weekly note:
         {% if data.note %}
           <strong>{{ data.note.week_start }}</strong> · {{ data.note.leader.name }} - {{ data.note.note }}
+          {% if data.note.attachment_path %}
+          · <a href="{{ url_for('files', filename=data.note.attachment_path) }}">Attachment</a>
+          {% endif %}
         {% else %}
           No weekly note yet.
         {% endif %}

@@ -9,7 +9,7 @@
           <th>Member</th>
           <th>Tasks</th>
           <th>Weekly Report</th>
-          <th>Remove</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -38,7 +38,7 @@
               No task
             {% endif %}
           </td>
-          <td>
+          <td class="report-status-cell">
             {% if member in missing_reports %}
             <span class="badge warning">Missing this week</span>
             {% else %}
@@ -46,10 +46,10 @@
             {% endif %}
           </td>
           <td>
-            <form method="post" onsubmit="return confirm('Remove member from active team?');">
+            <form method="post" class="inline-form" onsubmit="return confirm('Remove member from active team?');">
               <input type="hidden" name="action" value="remove_member" />
               <input type="hidden" name="member_id" value="{{ member.id }}" />
-              <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+              <button class="btn btn-sm btn-danger" type="submit">Kick</button>
             </form>
           </td>
         </tr>
@@ -136,7 +136,7 @@
 
   <section class="card">
     <h2>Weekly Project-Department Progress</h2>
-    <form method="post" class="grid-form">
+    <form method="post" enctype="multipart/form-data" class="grid-form">
       <input type="hidden" name="action" value="submit_progress_note" />
       <label>Project
         <select name="project_id" required>
@@ -149,13 +149,21 @@
       <label>Progress note
         <textarea name="note" rows="4" required placeholder="Weekly department-level project update"></textarea>
       </label>
+      <label>Attachment (optional)
+        <input type="file" name="progress_attachment" />
+      </label>
       <button type="submit" class="btn">Save Weekly Note</button>
     </form>
 
     <h3>Recent Notes</h3>
     <ul class="list">
       {% for note in progress_notes[:8] %}
-      <li>{{ note.week_start }} · {{ note.project.name }} - {{ note.note }}</li>
+      <li>
+        {{ note.week_start }} · {{ note.project.name }} - {{ note.note }}
+        {% if note.attachment_path %}
+        · <a href="{{ url_for('files', filename=note.attachment_path) }}">Attachment</a>
+        {% endif %}
+      </li>
       {% else %}
       <li>No notes submitted yet.</li>
       {% endfor %}
