@@ -50,6 +50,16 @@
           {% endfor %}
         </select>
       </label>
+      <label>Task rating (1-5)
+        <select name="task_rating" required>
+          <option value="">Select rating</option>
+          <option value="1">1 - Very poor</option>
+          <option value="2">2 - Poor</option>
+          <option value="3">3 - Neutral</option>
+          <option value="4">4 - Good</option>
+          <option value="5">5 - Excellent</option>
+        </select>
+      </label>
       <label>Report text
         <textarea name="text" rows="4" required></textarea>
       </label>

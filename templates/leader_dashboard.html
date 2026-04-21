@@ -7,10 +7,9 @@
       <thead>
         <tr>
           <th>Member</th>
-          <th>Current Tasks</th>
-          <th>Project</th>
-          <th>Status</th>
+          <th>Tasks</th>
           <th>Weekly Report</th>
+          <th>Remove</th>
         </tr>
       </thead>
       <tbody>
@@ -20,23 +19,23 @@
           <td>{{ member.name }}</td>
           <td>
             {% if member_tasks %}
-              {{ member_tasks[0].title }}
+              {% for task in member_tasks %}
+              <div class="compact-row">
+                <span>{{ task.title }} · {{ task.project.name }}</span>
+                <form method="post" class="inline-form">
+                  <input type="hidden" name="action" value="update_task_status" />
+                  <input type="hidden" name="task_id" value="{{ task.id }}" />
+                  <select name="status">
+                    {% for status in task_status_options %}
+                    <option value="{{ status }}" {% if task.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-sm" type="submit">Update</button>
+                </form>
+              </div>
+              {% endfor %}
             {% else %}
               No task
-            {% endif %}
-          </td>
-          <td>
-            {% if member_tasks %}
-              {{ member_tasks[0].project.name }}
-            {% else %}
-              -
-            {% endif %}
-          </td>
-          <td>
-            {% if member_tasks %}
-              <span class="badge">{{ member_tasks[0].status }}</span>
-            {% else %}
-              -
             {% endif %}
           </td>
           <td>
@@ -46,15 +45,22 @@
             <span class="badge success">Submitted</span>
             {% endif %}
           </td>
+          <td>
+            <form method="post" onsubmit="return confirm('Remove member from active team?');">
+              <input type="hidden" name="action" value="remove_member" />
+              <input type="hidden" name="member_id" value="{{ member.id }}" />
+              <button class="btn btn-sm btn-danger" type="submit">Remove</button>
+            </form>
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="5">No members found.</td>
+          <td colspan="4">No active members found.</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-    <p class="muted">Weekly tracking window starts {{ week_start.date() }}.</p>
+    <p class="muted">Weekly tracking window starts {{ week_start }}.</p>
   </section>
 
   <section class="card">
@@ -99,37 +105,59 @@
     <h2>Submit Weekly Leader Report</h2>
     <form method="post" enctype="multipart/form-data" class="grid-form">
       <input type="hidden" name="action" value="submit_report" />
+      <label>Related project
+        <select name="project_id" required>
+          <option value="">Select project</option>
+          {% for project in projects %}
+          <option value="{{ project.id }}">{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
       <label>Report text
-        <textarea name="text" rows="4" required></textarea>
+        <textarea name="text" rows="4" required placeholder="Progress, blockers, member notes, department observations..."></textarea>
       </label>
       <label>Attachment (optional)
         <input type="file" name="leader_attachment" />
       </label>
       <button type="submit" class="btn">Submit Leader Report</button>
     </form>
-  </section>
-
-  <section class="card">
-    <h2>Missing Member Reports</h2>
-    <ul class="list">
-      {% for member in missing_reports %}
-      <li>{{ member.name }} ({{ member.department }})</li>
-      {% else %}
-      <li>All members submitted this week.</li>
-      {% endfor %}
-    </ul>
 
     <h3>My Leader Reports</h3>
     <ul class="list">
       {% for report in leader_reports %}
       <li>
-        {{ report.created_at.strftime('%Y-%m-%d %H:%M') }} - {{ report.text }}
-        {% if report.attachment_path %}
-          · <a href="{{ url_for('files', filename=report.attachment_path) }}">Attachment</a>
-        {% endif %}
+        {{ report.created_at.strftime('%Y-%m-%d %H:%M') }} · {{ report.project.name if report.project else 'No project' }} - {{ report.text }}
       </li>
       {% else %}
       <li>No leader reports yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Weekly Project-Department Progress</h2>
+    <form method="post" class="grid-form">
+      <input type="hidden" name="action" value="submit_progress_note" />
+      <label>Project
+        <select name="project_id" required>
+          <option value="">Select project</option>
+          {% for project in projects %}
+          <option value="{{ project.id }}">{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Progress note
+        <textarea name="note" rows="4" required placeholder="Weekly department-level project update"></textarea>
+      </label>
+      <button type="submit" class="btn">Save Weekly Note</button>
+    </form>
+
+    <h3>Recent Notes</h3>
+    <ul class="list">
+      {% for note in progress_notes[:8] %}
+      <li>{{ note.week_start }} · {{ note.project.name }} - {{ note.note }}</li>
+      {% else %}
+      <li>No notes submitted yet.</li>
       {% endfor %}
     </ul>
   </section>
